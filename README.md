@@ -56,23 +56,23 @@ detection and remounting so the whole thing runs unattended.
 ## Architecture
 
 ```
- ┌────────────────────┐        watches         ┌────────────────────────┐
- │   /Volumes (fs)     │◄───────────────────────│ launchd (LaunchDaemon)  │
- └─────────┬───────────┘      WatchPaths         └───────────┬─────────-─┘
+ ┌─────────────────────┐        watches         ┌────────────────────────┐
+ │   /Volumes (fs)     │◄───────────────────────│ launchd (LaunchDaemon) │
+ └─────────┬───────────┘      WatchPaths        └────────────┬─────────-─┘
            │                                                  │
            │ NTFS drive plugged in                            │ triggers
            │ (mounted read-only by macOS)                     ▼
-           │                                       ┌────────────────────────┐
+           │                                       ┌─────────────────────────┐
            │                                       │ automount-ntfs.sh       │
            │                                       │  1. diskutil list       │
            │                                       │  2. filter NTFS parts   │
            │                                       │  3. unmount read-only   │
            │                                       │  4. remount via ntfs-3g │
-           │                                       └───────────┬────────────┘
+           │                                       └───────────┬─────────────┘
            │                                                   │
            ▼                                                   ▼
  ┌───────────────────────────────────────────────────────────────────────┐
- │   /Volumes/<VolumeName>  —  mounted read/write via fuse-t + ntfs-3g     │
+ │   /Volumes/<VolumeName>  —  mounted read/write via fuse-t + ntfs-3g   │
  └───────────────────────────────────────────────────────────────────────┘
 ```
 
