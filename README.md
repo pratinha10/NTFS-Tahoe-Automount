@@ -1,45 +1,114 @@
-# NTFS Automount para macOS (Apple Silicon)
+# NTFS Tahoe Automount
 
-Monta automaticamente discos NTFS no macOS com suporte a **leitura e escrita**,
-sem necessidade de kernel extensions (kext) — usando [fuse-t](https://www.fuse-t.org/)
-e uma versão do [ntfs-3g](https://github.com/macos-fuse-t/ntfs-3g) compilada para o fuse-t.
+Automatic, write-enabled NTFS mounting for macOS (Apple Silicon) — no kernel
+extensions required.
 
-Assim que instalado, qualquer disco, pendrive ou HD externo formatado em NTFS
-passa a montar automaticamente com escrita habilitada, sem necessidade de
-nenhuma ação manual — basta ligar o disco.
+<p align="left">
+  <img alt="platform" src="https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)-lightgrey">
+  <img alt="shell" src="https://img.shields.io/badge/shell-bash-89e051">
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-blue">
+  <img alt="kext" src="https://img.shields.io/badge/kernel%20extension-not%20required-success">
+</p>
 
-## Como funciona
+macOS mounts NTFS volumes read-only by default. This project automatically
+remounts any NTFS partition — internal, external, or removable — as
+**read/write**, using [fuse-t](https://www.fuse-t.org/) (a kext-less FUSE
+implementation) and a [fuse-t-compatible build of ntfs-3g](https://github.com/macos-fuse-t/ntfs-3g).
 
-1. Um **LaunchDaemon** (`com.pratinha10.automount-ntfs.plist`) fica a monitorizar
-   a pasta `/Volumes`, usando `WatchPaths`.
-2. Sempre que algo muda ali (por exemplo, quando ligas um disco NTFS e o
-   macOS o monta automaticamente como só-leitura), o daemon corre o script
-   `automount-ntfs.sh`.
-3. O script:
-   - Percorre todas as partições do tipo NTFS presentes no sistema;
-   - Desmonta o mount automático (só-leitura) criado pelo macOS;
-   - Remonta a mesma partição usando `ntfs-3g`, com opção de leitura/escrita.
+Once installed, plugging in any NTFS drive is enough — it mounts writable
+automatically, with no manual steps, no GUI tool, and no reboot into
+Recovery Mode to disable System Integrity Protection.
 
-Não é necessário indicar manualmente qual disco montar — o script deteta
-**qualquer** partição NTFS ligada ao Mac.
+---
 
-## Requisitos
+## Table of contents
 
-- macOS em Apple Silicon (M1/M2/M3/M4...)
+- [Why](#why)
+- [Architecture](#architecture)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Uninstall](#uninstall)
+- [Troubleshooting](#troubleshooting)
+- [Security considerations](#security-considerations)
+- [Contributing](#contributing)
+- [Credits](#credits)
+- [License](#license)
+
+---
+
+## Why
+
+The common approaches to writable NTFS on macOS all have drawbacks:
+
+| Approach                             | Drawback                                                                          |
+|---------------------------------------|------------------------------------------------------------------------------------|
+| Native `mount_ntfs -o rw`             | Unsupported/undocumented; disabled entirely on recent macOS with `fskit`           |
+| macFUSE + ntfs-3g                     | Requires a kernel extension, which needs Reduced Security / Recovery Mode boot flags — invasive on Apple Silicon |
+| Commercial drivers (Paragon, Tuxera)  | Paid, closed-source                                                                |
+| Manual `mount` after every reboot     | Not automatic, easy to forget, breaks scripted workflows                          |
+
+This project uses **fuse-t**, which implements FUSE in userspace via a
+network filesystem provider instead of a kernel extension, sidestepping the
+Secure Boot / SIP requirements entirely. A `launchd` daemon then handles
+detection and remounting so the whole thing runs unattended.
+
+## Architecture
+
+```
+ ┌────────────────────┐        watches         ┌────────────────────────┐
+ │   /Volumes (fs)     │◄───────────────────────│ launchd (LaunchDaemon)  │
+ └─────────┬───────────┘      WatchPaths         └───────────┬─────────-─┘
+           │                                                  │
+           │ NTFS drive plugged in                            │ triggers
+           │ (mounted read-only by macOS)                     ▼
+           │                                       ┌────────────────────────┐
+           │                                       │ automount-ntfs.sh       │
+           │                                       │  1. diskutil list       │
+           │                                       │  2. filter NTFS parts   │
+           │                                       │  3. unmount read-only   │
+           │                                       │  4. remount via ntfs-3g │
+           │                                       └───────────┬────────────┘
+           │                                                   │
+           ▼                                                   ▼
+ ┌───────────────────────────────────────────────────────────────────────┐
+ │   /Volumes/<VolumeName>  —  mounted read/write via fuse-t + ntfs-3g     │
+ └───────────────────────────────────────────────────────────────────────┘
+```
+
+- **`launchd/com.pratinha10.automount-ntfs.plist`** — a `LaunchDaemon` with
+  `WatchPaths: [/Volumes]`, so it fires whenever a volume is mounted or
+  unmounted, and `RunAtLoad`, so it also runs at every boot.
+- **`scripts/automount-ntfs.sh`** — idempotent shell script:
+  1. Enumerates every `Microsoft Basic Data` / `Windows_NTFS` partition via
+     `diskutil list`.
+  2. Confirms the filesystem is actually NTFS (`diskutil info`).
+  3. Skips partitions already correctly mounted.
+  4. Force-unmounts the read-only auto-mount created by macOS.
+  5. Remounts via `ntfs-3g` with `local,allow_other,auto_xattr`.
+
+No disk identifier or UUID is hardcoded — `diskX`/`diskXsY` identifiers are
+reassigned by macOS between reboots and reconnects, so the script re-resolves
+them on every run.
+
+## Requirements
+
+- macOS on Apple Silicon (M1 or later)
 - [Homebrew](https://brew.sh)
-- [fuse-t](https://www.fuse-t.org/) — driver FUSE sem kernel extension
-- [ntfs-3g (fork fuse-t)](https://github.com/macos-fuse-t/ntfs-3g) — compilado localmente
+- [fuse-t](https://www.fuse-t.org/)
+- [macos-fuse-t/ntfs-3g](https://github.com/macos-fuse-t/ntfs-3g), built locally
+- Xcode Command Line Tools (`xcode-select --install`), required to compile ntfs-3g
 
-## Instalação
+## Installation
 
-### 1. Instalar o fuse-t
+### 1. Install fuse-t
 
 ```bash
 brew tap macos-fuse-t/homebrew-cask
 brew install fuse-t
 ```
 
-### 2. Compilar o ntfs-3g
+### 2. Build ntfs-3g against fuse-t
 
 ```bash
 sudo mkdir -p /usr/local/include
@@ -61,10 +130,7 @@ make
 sudo make install
 ```
 
-> Nota: se o `make` falhar por falta de ferramentas de compilação, instala as
-> Command Line Tools do Xcode com `xcode-select --install`.
-
-### 3. Instalar o automount deste repositório
+### 3. Install this repository
 
 ```bash
 git clone https://github.com/pratinha10/NTFS-Tahoe-Automount.git
@@ -73,95 +139,124 @@ chmod +x install.sh uninstall.sh
 ./install.sh
 ```
 
-O script `install.sh`:
-- Copia `scripts/automount-ntfs.sh` para `/usr/local/bin/`
-- Copia `launchd/com.pratinha10.automount-ntfs.plist` para `/Library/LaunchDaemons/`
-- Carrega o LaunchDaemon com `launchctl`
+`install.sh`:
+- Validates that `ntfs-3g` and `fuse-t` are present
+- Copies `scripts/automount-ntfs.sh` → `/usr/local/bin/automount-ntfs.sh`
+- Copies `launchd/com.pratinha10.automount-ntfs.plist` → `/Library/LaunchDaemons/`
+- Loads the `LaunchDaemon` via `launchctl`
 
-## Utilização
+## Usage
 
-Depois de instalado, não precisas de fazer mais nada — liga o disco NTFS e
-ele aparece no Finder já com escrita habilitada, dentro de alguns segundos.
+No further action is required. Connect any NTFS-formatted drive and it will
+appear in Finder, mounted read/write, within a few seconds.
 
-Se quiseres forçar a montagem manualmente (por exemplo, logo a seguir à
-instalação, sem esperar por um novo "connect" do disco):
+To trigger a mount pass manually (useful right after installation, or for
+debugging):
 
 ```bash
 sudo /usr/local/bin/automount-ntfs.sh
 ```
 
-Para verificar que está tudo montado corretamente:
+To confirm mount state and options:
 
 ```bash
 mount | grep -i ntfs
 ```
 
-## Desinstalação
+## Uninstall
 
 ```bash
 ./uninstall.sh
 ```
 
-Isto remove o LaunchDaemon e o script de automontagem. O `fuse-t` e o
-`ntfs-3g` não são removidos automaticamente (caso queiras continuar a
-usá-los manualmente) — instruções para os remover também aparecem no final
-do `uninstall.sh`.
+This unloads and removes the `LaunchDaemon` and the installed script.
+`fuse-t` and `ntfs-3g` are left in place intentionally — `uninstall.sh`
+prints the commands to remove them as well, if desired.
 
-## Problemas comuns
+## Troubleshooting
 
-### "The disk contains an unclean file system (0, 0)"
+<details>
+<summary><strong>"The disk contains an unclean file system (0, 0)"</strong></summary>
 
-Isto acontece quando o disco foi desligado de forma "suja" no Windows —
-normalmente por causa da **Inicialização Rápida (Fast Startup)** ou de
-hibernação, que nunca desligam o disco por completo.
+<br>
 
-Sintoma: o disco monta sempre como só-leitura, mesmo com o `ntfs-3g`
-instalado e a correr.
+Occurs when the volume was last unmounted "unsafely" from Windows — almost
+always due to **Fast Startup** or hibernation, both of which leave the NTFS
+journal in a dirty state. Every driver (native macOS, Tuxera, ntfs-3g) will
+refuse read/write access and silently fall back to read-only as a safety
+measure.
 
-**Solução 1 (recomendada):** desativa o Fast Startup no Windows
-(Painel de Controlo → Opções de Energia → "Escolher a função dos botões
-de energia" → desmarcar "Ativar inicialização rápida"), depois desliga o
-Windows normalmente (não hibernar) antes de ligar o disco ao Mac.
+**Fix 1 — from Windows (recommended):** disable Fast Startup
+(*Control Panel → Power Options → Choose what the power buttons do →
+uncheck "Turn on fast startup"*), then fully shut down Windows (not
+hibernate) before reconnecting the drive to the Mac.
 
-**Solução 2 (rápida, sem precisar do Windows):** limpar a flag "dirty"
-diretamente no Mac:
+**Fix 2 — from macOS, without touching Windows:**
 
 ```bash
-sudo /usr/local/bin/ntfsfix -d /dev/diskXsY   # substitui pelo identificador correto
+sudo /usr/local/bin/ntfsfix -d /dev/diskXsY   # replace with the correct identifier
 ```
 
-Depois disso, desmonta e volta a montar (ou corre o `automount-ntfs.sh`
-de novo).
+Then unmount/remount, or simply re-run `automount-ntfs.sh`.
 
-> ⚠️ O `ntfsfix -d` limpa apenas a flag, sem verificar a integridade real
-> do sistema de ficheiros. Normalmente é seguro (a causa mais comum é
-> mesmo o Fast Startup), mas se o disco tiver sido desligado de forma
-> abrupta por outros motivos (falha de energia, remoção sem ejetar),
-> considera correr `ntfsfix` sem o `-d` para uma verificação completa.
+> `ntfsfix -d` clears only the dirty flag, without performing a full
+> filesystem check. This is safe in the common Fast-Startup case. If the
+> drive was disconnected abruptly for other reasons (power loss, unplugged
+> without ejecting), run `ntfsfix` without `-d` for a full consistency check
+> first.
 
-### O identificador do disco (`diskX`) muda entre reinícios/reconexões
+</details>
 
-É normal — o macOS não garante que o mesmo disco fica sempre com o mesmo
-número. Por isso o script **não depende de um identificador fixo**: ele
-procura, a cada execução, todas as partições NTFS existentes no momento.
+<details>
+<summary><strong>Disk identifier (<code>diskX</code>) changes between reconnects</strong></summary>
 
-### `mount_ntfs: command not found`
+<br>
 
-Em versões recentes do macOS (com o novo framework `fskit`), o binário
-`mount_ntfs` tradicional pode nem sequer existir como comando standalone.
-É mais um motivo para depender do `ntfs-3g` (via fuse-t) em vez do driver
-nativo do sistema.
+Expected behavior — macOS does not guarantee stable `disk`/`diskXsY`
+identifiers across reboots or reconnects. `automount-ntfs.sh` re-enumerates
+partitions on every invocation instead of caching an identifier, so this
+does not require any manual intervention.
 
-## Aviso
+</details>
 
-Este projeto envolve montar sistemas de ficheiros de terceiros com
-permissões de escrita. Embora o `ntfs-3g` seja um driver maduro e
-amplamente utilizado, recomenda-se manter backups de dados importantes
-antes de escrever num disco NTFS pela primeira vez através deste método.
+<details>
+<summary><strong><code>mount_ntfs: command not found</code></strong></summary>
 
-## Créditos
+<br>
 
-- [fuse-t](https://www.fuse-t.org/) — FUSE sem kernel extension para macOS
-- [macos-fuse-t/ntfs-3g](https://github.com/macos-fuse-t/ntfs-3g) — fork do
-  NTFS-3G adaptado para funcionar com o fuse-t
-- Tutorial original: [LeoDBFR/NTFS-MacOS-13-26](https://github.com/LeoDBFR/NTFS-MacOS-13-26)
+On recent macOS versions using the `fskit` framework, the legacy
+`mount_ntfs` binary may not exist as a standalone command at all. This is
+one of the reasons this project relies on `ntfs-3g` via `fuse-t` rather than
+any native driver path.
+
+</details>
+
+## Security considerations
+
+- This project mounts third-party filesystems with write access. `ntfs-3g`
+  is a mature, widely deployed driver, but back up important data before
+  writing to an NTFS volume through any userspace driver for the first time.
+- The `LaunchDaemon` runs as root (required to call `diskutil`/`mount`) and
+  is scoped narrowly: it only inspects and (re)mounts NTFS partitions, it
+  does not read or transmit file contents.
+- No kernel extension is installed, so SIP / Secure Boot policy on the Mac
+  is left untouched.
+
+## Contributing
+
+Issues and pull requests are welcome — in particular:
+- Support for additional NTFS variants / edge cases in `diskutil` output parsing
+- Packaging as a Homebrew formula/cask
+- A `launchd` `Agent` (per-user) alternative to the current `Daemon` (system-wide)
+
+## Credits
+
+- [fuse-t](https://www.fuse-t.org/) — kext-less FUSE implementation for macOS
+- [macos-fuse-t/ntfs-3g](https://github.com/macos-fuse-t/ntfs-3g) — NTFS-3G
+  fork adapted to build against fuse-t
+- Original approach documented in
+  [LeoDBFR/NTFS-MacOS-13-26](https://github.com/LeoDBFR/NTFS-MacOS-13-26)
+
+## License
+
+[MIT](LICENSE)
