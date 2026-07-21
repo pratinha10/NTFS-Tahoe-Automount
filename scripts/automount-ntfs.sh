@@ -6,7 +6,7 @@
 # com suporte a leitura E escrita, usando o driver ntfs-3g (via fuse-t).
 #
 # Este script é chamado automaticamente pelo LaunchDaemon
-# (com.joao.automount-ntfs.plist) sempre que há uma alteração em /Volumes,
+# (com.pratinha10.automount-ntfs.plist) sempre que há uma alteração em /Volumes,
 # ou seja, sempre que um disco é conectado ou desconectado.
 #
 # Requisitos:

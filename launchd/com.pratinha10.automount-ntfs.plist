@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.joao.automount-ntfs</string>
+    <string>com.pratinha10.automount-ntfs</string>
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/automount-ntfs.sh</string>

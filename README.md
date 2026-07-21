@@ -10,7 +10,7 @@ nenhuma ação manual — basta ligar o disco.
 
 ## Como funciona
 
-1. Um **LaunchDaemon** (`com.joao.automount-ntfs.plist`) fica a monitorizar
+1. Um **LaunchDaemon** (`com.pratinha10.automount-ntfs.plist`) fica a monitorizar
    a pasta `/Volumes`, usando `WatchPaths`.
 2. Sempre que algo muda ali (por exemplo, quando ligas um disco NTFS e o
    macOS o monta automaticamente como só-leitura), o daemon corre o script
@@ -67,15 +67,15 @@ sudo make install
 ### 3. Instalar o automount deste repositório
 
 ```bash
-git clone https://github.com/<o-teu-user>/ntfs-automount-macos.git
-cd ntfs-automount-macos
+git clone https://github.com/pratinha10/NTFS-Tahoe-Automount.git
+cd NTFS-Tahoe-Automount
 chmod +x install.sh uninstall.sh
 ./install.sh
 ```
 
 O script `install.sh`:
 - Copia `scripts/automount-ntfs.sh` para `/usr/local/bin/`
-- Copia `launchd/com.joao.automount-ntfs.plist` para `/Library/LaunchDaemons/`
+- Copia `launchd/com.pratinha10.automount-ntfs.plist` para `/Library/LaunchDaemons/`
 - Carrega o LaunchDaemon com `launchctl`
 
 ## Utilização

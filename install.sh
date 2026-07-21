@@ -35,13 +35,13 @@ sudo cp "$SCRIPT_DIR/scripts/automount-ntfs.sh" /usr/local/bin/automount-ntfs.sh
 sudo chmod +x /usr/local/bin/automount-ntfs.sh
 
 echo "==> A instalar o LaunchDaemon..."
-sudo cp "$SCRIPT_DIR/launchd/com.joao.automount-ntfs.plist" /Library/LaunchDaemons/com.joao.automount-ntfs.plist
-sudo chown root:wheel /Library/LaunchDaemons/com.joao.automount-ntfs.plist
-sudo chmod 644 /Library/LaunchDaemons/com.joao.automount-ntfs.plist
+sudo cp "$SCRIPT_DIR/launchd/com.pratinha10.automount-ntfs.plist" /Library/LaunchDaemons/com.pratinha10.automount-ntfs.plist
+sudo chown root:wheel /Library/LaunchDaemons/com.pratinha10.automount-ntfs.plist
+sudo chmod 644 /Library/LaunchDaemons/com.pratinha10.automount-ntfs.plist
 
 echo "==> A carregar o LaunchDaemon..."
-sudo launchctl unload /Library/LaunchDaemons/com.joao.automount-ntfs.plist 2>/dev/null || true
-sudo launchctl load /Library/LaunchDaemons/com.joao.automount-ntfs.plist
+sudo launchctl unload /Library/LaunchDaemons/com.pratinha10.automount-ntfs.plist 2>/dev/null || true
+sudo launchctl load /Library/LaunchDaemons/com.pratinha10.automount-ntfs.plist
 
 echo ""
 echo "Instalação concluída."
