@@ -56,9 +56,9 @@ detection and remounting so the whole thing runs unattended.
 ## Architecture
 
 ```
- ┌─────────────────────┐        watches         ┌────────────────────────┐
- │   /Volumes (fs)     │◄───────────────────────│ launchd (LaunchDaemon) │
- └─────────┬───────────┘      WatchPaths        └────────────┬─────────-─┘
+ ┌─────────────────────┐        watches          ┌────────────────────────┐
+ │   /Volumes (fs)     │◄────────────────────────│ launchd (LaunchDaemon) │
+ └─────────┬───────────┘      WatchPaths         └────────────┬─────────-─┘
            │                                                  │
            │ NTFS drive plugged in                            │ triggers
            │ (mounted read-only by macOS)                     ▼
