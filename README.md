@@ -145,6 +145,30 @@ chmod +x install.sh uninstall.sh
 - Copies `launchd/com.pratinha10.automount-ntfs.plist` → `/Library/LaunchDaemons/`
 - Loads the `LaunchDaemon` via `launchctl`
 
+### 4. Grant Full Disk Access — required
+
+This step is not optional. Without it, the script works fine when run
+manually from a Terminal, but fails silently with `Operation not permitted`
+when `launchd` invokes it in the background — because raw disk access
+(`/dev/diskX`) is gated by TCC, and Terminal.app's Full Disk Access grant
+does not extend to processes spawned by `launchd`.
+
+Go to **System Settings → Privacy & Security → Full Disk Access** and add
+both:
+
+- `/bin/bash`
+- `/usr/local/bin/automount-ntfs.sh`
+
+(Use <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd> in the file picker to jump
+directly to `/bin/bash`, since `/bin` is hidden in Finder by default.)
+
+Then reload the daemon:
+
+```bash
+sudo launchctl unload /Library/LaunchDaemons/com.pratinha10.automount-ntfs.plist
+sudo launchctl load /Library/LaunchDaemons/com.pratinha10.automount-ntfs.plist
+```
+
 ## Usage
 
 No further action is required. Connect any NTFS-formatted drive and it will
@@ -161,6 +185,13 @@ To confirm mount state and options:
 
 ```bash
 mount | grep -i ntfs
+```
+
+Every run appends to `/tmp/automount-ntfs.log`, which is the first place to
+check if a drive isn't mounting as expected:
+
+```bash
+cat /tmp/automount-ntfs.log
 ```
 
 ## Uninstall
@@ -231,6 +262,52 @@ any native driver path.
 
 </details>
 
+<details>
+<summary><strong>Daemon runs (per `launchctl print`) but the drive never mounts</strong></summary>
+
+<br>
+
+Check `/tmp/automount-ntfs.log`. If it shows:
+
+```
+Error opening '/dev/diskXsY': Operation not permitted
+```
+
+this is a **Full Disk Access (TCC)** issue, not a bug in the script or in
+`ntfs-3g`. Raw device access (`/dev/diskX`) is gated by macOS's privacy
+framework. Running the script manually from Terminal works because
+`Terminal.app` typically already has Full Disk Access — but a script spawned
+directly by `launchd` as a system daemon runs under a different process
+(`/bin/bash`) that does **not** inherit that grant.
+
+**Fix:** grant Full Disk Access to both `/bin/bash` and
+`/usr/local/bin/automount-ntfs.sh` in *System Settings → Privacy & Security
+→ Full Disk Access* (see [step 4 of Installation](#installation)), then
+reload the daemon. This is a one-time setup step, required on every machine
+where this is installed — it cannot be scripted, since macOS requires an
+explicit, interactive grant for Full Disk Access.
+
+</details>
+
+<details>
+<summary><strong>The drive doesn't mount if it's connected during boot</strong></summary>
+
+<br>
+
+If the NTFS drive is already plugged in while macOS is still starting up,
+`WatchPaths` may not catch the very first mount event, since the daemon
+might not be fully registered with `fsevents` yet. In practice this only
+affects drives connected in the few seconds around boot — connecting after
+the desktop has fully loaded works reliably.
+
+Workaround if needed immediately:
+
+```bash
+sudo /usr/local/bin/automount-ntfs.sh
+```
+
+</details>
+
 ## Security considerations
 
 - This project mounts third-party filesystems with write access. `ntfs-3g`
@@ -241,6 +318,9 @@ any native driver path.
   does not read or transmit file contents.
 - No kernel extension is installed, so SIP / Secure Boot policy on the Mac
   is left untouched.
+- Full Disk Access is granted to `/bin/bash` and to the script itself, not
+  to a broad, generic binary — this is the narrowest grant that still lets
+  `diskutil`/`ntfs-3g` open raw device nodes when invoked by `launchd`.
 
 ## Contributing
 

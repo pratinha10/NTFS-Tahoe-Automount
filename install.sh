@@ -45,5 +45,12 @@ sudo launchctl load /Library/LaunchDaemons/com.pratinha10.automount-ntfs.plist
 
 echo ""
 echo "Instalação concluída."
+echo ""
+echo "IMPORTANTE: concede Full Disk Access a /bin/bash e a /usr/local/bin/automount-ntfs.sh"
+echo "em System Settings -> Privacy & Security -> Full Disk Access."
+echo "Sem isto, o script funciona quando corrido manualmente, mas falha"
+echo "silenciosamente ('Operation not permitted') quando é o launchd a"
+echo "correr sozinho em segundo plano. Ver README.md para detalhes."
+echo ""
 echo "Conecta um disco NTFS para testar, ou corre manualmente:"
 echo "  sudo /usr/local/bin/automount-ntfs.sh"
